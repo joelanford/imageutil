@@ -324,11 +324,58 @@ func newRepository(sys *types.SystemContext, logicalRef reference.Named, pullSou
 	return repo, nil
 }
 
-func resolveRef(ctx context.Context, r *remote.Repository, ref reference.Reference) error {
-	if _, err := r.Resolve(ctx, ref.String()); err != nil {
+func resolveRef(ctx context.Context, r *remote.Repository, ref reference.Named) error {
+	switch ref.(type) {
+	case reference.Tagged, reference.Digested:
+		if _, err := r.Resolve(ctx, ref.String()); err != nil {
+			return err
+		}
+		return nil
+	}
+	exists, err := repoExists(ctx, r)
+	if err != nil {
 		return err
 	}
+	if !exists {
+		return errdef.ErrNotFound
+	}
 	return nil
+}
+
+func repoExists(ctx context.Context, r *remote.Repository) (bool, error) {
+	ctx = auth.AppendRepositoryScope(ctx, r.Reference, auth.ActionPull)
+	url := buildRepositoryTagListURL(r.PlainHTTP, r.Reference)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return false, err
+	}
+	resp, err := r.Client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK, nil
+}
+
+// buildScheme returns HTTP scheme used to access the remote registry.
+func buildScheme(plainHTTP bool) string {
+	if plainHTTP {
+		return "http"
+	}
+	return "https"
+}
+
+// buildRepositoryBaseURL builds the base endpoint of the remote repository.
+// Format: <scheme>://<registry>/v2/<repository>
+func buildRepositoryBaseURL(plainHTTP bool, ref registry.Reference) string {
+	return fmt.Sprintf("%s://%s/v2/%s", buildScheme(plainHTTP), ref.Host(), ref.Repository)
+}
+
+// buildRepositoryTagListURL builds the URL for accessing the tag list API.
+// Format: <scheme>://<registry>/v2/<repository>/tags/list
+// Reference: https://distribution.github.io/distribution/spec/api/#tags
+func buildRepositoryTagListURL(plainHTTP bool, ref registry.Reference) string {
+	return buildRepositoryBaseURL(plainHTTP, ref) + "/tags/list"
 }
 
 func getCredential(sys *types.SystemContext, ref reference.Named) (auth.Credential, error) {

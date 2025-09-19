@@ -230,7 +230,14 @@ func TestNewRepository(t *testing.T) {
 					{Location: httpReg.Host(), Insecure: true},
 				},
 			}}},
-
+			requireError: require.NoError,
+		},
+		{
+			name: "repository found, reference has no tag or digest",
+			ref:  func(ref registry.Reference) registry.Reference { ref.Reference = ""; return ref }(secureRef),
+			setup: func(t *testing.T) {
+				testutil.PushAndTagManifest(t, secureRef, testutil.WithRootCAs(secureCertPool))
+			},
 			requireError: require.NoError,
 		},
 	}
