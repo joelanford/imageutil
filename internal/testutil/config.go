@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/containers/image/v5/pkg/sysregistriesv2"
 	"github.com/stretchr/testify/require"
+	"go.podman.io/image/v5/pkg/sysregistriesv2"
 )
 
 func CreateCertDir(t testing.TB, cert *x509.Certificate) string {
